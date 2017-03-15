@@ -10,6 +10,7 @@ import socket
 import tempfile
 import time
 import urlparse
+import subprocess
 
 LOGGER = logging.getLogger(__name__)
 
@@ -319,6 +320,55 @@ class SocketStatsPlugin(Plugin):
             connection = socket.socket()
             connection.connect(remote_host)
         return connection
+
+
+class SubprocessStatsPlugin(Plugin):
+    """Extend the Plugin class overriding poll for targets that provide data
+    via a commandline call.
+
+    """
+    DEFAULT_COMMAND = None
+
+    def fetch_data(self):
+        """Fetch the data from the command
+
+        :rtype: str
+
+        """
+        data = self.run_command()
+        return data if data else ''
+
+    def run_command(self, command=None):
+        """Fetch the data from the specified command.
+
+        :param str url: URL to fetch instead of the stats URL
+        :rtype: requests.models.Response
+
+        """
+        LOGGER.debug('Polling %s Stats at %s',
+                     self.__class__.__name__, command or self.command)
+        try:
+            return subprocess.check_output(command or self.command)
+        except:
+            return ''
+
+    def poll(self):
+        """Poll command for stats data"""
+        self.initialize()
+        data = self.fetch_data()
+        if data:
+            self.add_datapoints(data)
+        self.finish()
+
+    @property
+    def command(self):
+        """Return the configured command in a uniform way for all HTTP based data
+        sources.
+
+        :rtype: str
+
+        """
+        return self.config.get('command', 'hostname')
 
 
 class HTTPStatsPlugin(Plugin):
